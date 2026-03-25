@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Kimi K2.5 CLI - Claude Code Style"""
 
-VERSION = "2.2.0"  # Concise output, no full file dump
+VERSION = "2.3.0"  # Fix tool_call_id error
 
 import os, sys, json, subprocess, difflib
 from pathlib import Path
@@ -338,6 +338,8 @@ class KimiAgent:
                         first_content = True
                         console.print()
                     for tc in delta.tool_calls:
+                        # Tool call ID veya index ile takip et
+                        tc_index = tc.index if hasattr(tc, 'index') else 0
                         if tc.id:
                             current_tool_id = tc.id
                             tool_calls_data[current_tool_id] = {
@@ -345,8 +347,20 @@ class KimiAgent:
                                 "name": tc.function.name if tc.function else "",
                                 "arguments": ""
                             }
-                        if tc.function and tc.function.arguments and current_tool_id:
-                            tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
+                        elif current_tool_id is None and tc_index is not None:
+                            # ID yoksa index kullan
+                            fallback_id = f"call_{tc_index}_{len(tool_calls_data)}"
+                            current_tool_id = fallback_id
+                            tool_calls_data[current_tool_id] = {
+                                "id": fallback_id,
+                                "name": tc.function.name if tc.function else "",
+                                "arguments": ""
+                            }
+                        if tc.function and current_tool_id:
+                            if tc.function.name and not tool_calls_data[current_tool_id]["name"]:
+                                tool_calls_data[current_tool_id]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
 
             if content:
                 console.print()  # Newline
@@ -355,19 +369,19 @@ class KimiAgent:
             console.print(f"\n[red]Hata: {e}[/red]")
             raise e
 
-        # Convert to tool_calls list
+        # Convert to tool_calls list - sadece geçerli ID ve name olanlar
         tool_calls = []
         for tc_id, tc_data in tool_calls_data.items():
-            if tc_data["name"]:
+            if tc_data["id"] and tc_data["name"]:
                 tool_calls.append(type('ToolCall', (), {
                     'id': tc_data["id"],
                     'function': type('Function', (), {
                         'name': tc_data["name"],
-                        'arguments': tc_data["arguments"]
+                        'arguments': tc_data["arguments"] or "{}"
                     })()
                 })())
 
-        return content, tool_calls
+        return content or "", tool_calls
 
     def chat(self, user_input):
         self.messages.append({"role": "user", "content": user_input})
@@ -405,15 +419,16 @@ Kurallar:
                         "content": result
                     })
 
-                # Mesajları güncelle
-                self.messages.append({
+                # Mesajları güncelle - content None olmamalı
+                assistant_msg = {
                     "role": "assistant",
-                    "content": content,
+                    "content": content or "",
                     "tool_calls": [
-                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                        for tc in tool_calls
+                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
+                        for tc in tool_calls if tc.id
                     ]
-                })
+                }
+                self.messages.append(assistant_msg)
                 self.messages.extend(tool_results)
 
                 # Devam et
