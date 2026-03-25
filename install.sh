@@ -41,7 +41,7 @@ mkdir -p "$KIMI_DIR"
 
 # CLI'yı indir
 echo "[*] Kimi CLI indiriliyor..."
-REPO_URL="https://raw.githubusercontent.com/meczup/kimi/main"
+REPO_URL="https://raw.githubusercontent.com/flashomer/kimi/master"
 
 curl -fsSL "$REPO_URL/kimi_cli.py" -o "$KIMI_DIR/kimi_cli.py" 2>/dev/null || \
 wget -q "$REPO_URL/kimi_cli.py" -O "$KIMI_DIR/kimi_cli.py" 2>/dev/null || \

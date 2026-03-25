@@ -121,7 +121,7 @@ function App() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-slate-400 mb-2">Linux / macOS:</p>
-                  <CodeBlock>curl -fsSL https://raw.githubusercontent.com/meczup/kimi/main/install.sh | bash</CodeBlock>
+                  <CodeBlock>curl -fsSL https://raw.githubusercontent.com/flashomer/kimi/master/install.sh | bash</CodeBlock>
                 </div>
 
                 <div>
