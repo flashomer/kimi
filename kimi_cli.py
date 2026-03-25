@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Kimi K2.5 CLI - Claude Code Style"""
 
-VERSION = "2.0.0"  # Streaming + Spinner + oh-my-kimi features
+VERSION = "2.0.1"  # Fix duplicate output
 
 import os, sys, json, subprocess, difflib
 from pathlib import Path
@@ -773,11 +773,7 @@ HIZLI BASLA:"""
 
             # Chat
             response = agent.chat(user_input)
-
-            if response:
-                console.print()
-                console.print(Markdown(response))
-                console.print()
+            # Response already printed via streaming, no need to print again
 
         except KeyboardInterrupt:
             console.print()

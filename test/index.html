@@ -4,81 +4,608 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>One Page Site</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
+        * {
             margin: 0;
-            font-family: Arial, sans-serif;
+            padding: 0;
+            box-sizing: border-box;
         }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* Header */
         header {
-            background: #333;
-            color: #fff;
-            padding: 10px 0;
-            text-align: center;
-        }
-        .slider {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            padding: 1rem 0;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .logo span {
+            color: #e74c3c;
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        nav a {
+            color: #fff;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        nav a:hover {
+            color: #e74c3c;
+        }
+
+        .hamburger {
+            display: none;
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* Slider */
+        .slider {
+            margin-top: 60px;
+            position: relative;
+            height: 100vh;
             overflow: hidden;
         }
-        .slider img {
+
+        .slide {
+            position: absolute;
             width: 100%;
-            display: none;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
         }
-        .gallery {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            padding: 10px;
+
+        .slide.active {
+            opacity: 1;
         }
-        .gallery img {
-            width: calc(33.333% - 10px);
-            height: auto;
+
+        .slide img {
+            width: 100%;
+            height: 100%;
             object-fit: cover;
         }
-        .contact {
-            background: #f4f4f4;
-            padding: 20px;
+
+        .slide-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             text-align: center;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 2rem;
+            border-radius: 10px;
         }
+
+        .slide-content h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .slide-content p {
+            font-size: 1.2rem;
+        }
+
+        .slider-dots {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .dot.active {
+            background: #e74c3c;
+        }
+
+        .slider-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: none;
+            padding: 1rem;
+            cursor: pointer;
+            font-size: 1.5rem;
+            transition: background 0.3s;
+        }
+
+        .slider-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .prev {
+            left: 20px;
+        }
+
+        .next {
+            right: 20px;
+        }
+
+        /* Galeri */
+        .gallery {
+            padding: 5rem 2rem;
+            background: #f5f5f5;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #333;
+        }
+
+        .section-title span {
+            color: #e74c3c;
+        }
+
+        .gallery-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .gallery-item {
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .gallery-item:hover img {
+            transform: scale(1.1);
+        }
+
+        .gallery-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(231, 76, 60, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .gallery-item:hover .gallery-overlay {
+            opacity: 1;
+        }
+
+        .gallery-overlay i {
+            color: #fff;
+            font-size: 2rem;
+        }
+
+        /* İletişim */
+        .contact {
+            padding: 5rem 2rem;
+            background: #fff;
+        }
+
+        .contact-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+        }
+
+        .contact-info h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .contact-item i {
+            width: 50px;
+            height: 50px;
+            background: #e74c3c;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            font-size: 1.2rem;
+        }
+
+        .contact-form {
+            background: #f5f5f5;
+            padding: 2rem;
+            border-radius: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .btn {
+            background: #e74c3c;
+            color: #fff;
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #c0392b;
+        }
+
+        /* Footer */
+        footer {
+            background: #222;
+            color: #fff;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .social-links {
+            margin-bottom: 1rem;
+        }
+
+        .social-links a {
+            color: #fff;
+            margin: 0 1rem;
+            font-size: 1.5rem;
+            transition: color 0.3s;
+        }
+
+        .social-links a:hover {
+            color: #e74c3c;
+        }
+
+        /* Responsive */
         @media (max-width: 768px) {
-            .gallery img {
-                width: calc(50% - 10px);
+            .hamburger {
+                display: block;
             }
-        }
-        @media (max-width: 480px) {
-            .gallery img {
+
+            nav ul {
+                position: fixed;
+                top: 60px;
+                left: -100%;
                 width: 100%;
+                height: calc(100vh - 60px);
+                background: rgba(0, 0, 0, 0.95);
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                transition: left 0.3s;
+            }
+
+            nav ul.active {
+                left: 0;
+            }
+
+            .slide-content h1 {
+                font-size: 2rem;
+            }
+
+            .slide-content p {
+                font-size: 1rem;
+            }
+
+            .contact-container {
+                grid-template-columns: 1fr;
+            }
+
+            .gallery-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Header -->
     <header>
-        <h1>Site Başlığı</h1>
+        <div class="nav-container">
+            <div class="logo">Logo<span>Site</span></div>
+            <nav>
+                <ul id="navMenu">
+                    <li><a href="#home">Ana Sayfa</a></li>
+                    <li><a href="#gallery">Galeri</a></li>
+                    <li><a href="#contact">İletişim</a></li>
+                </ul>
+            </nav>
+            <div class="hamburger" id="hamburger">
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
     </header>
-    <div class="slider">
-        <img src="slide1.jpg" alt="Slider Image 1">
-        <img src="slide2.jpg" alt="Slider Image 2">
-        <!-- More slides -->
-    </div>
-    <div class="gallery">
-        <img src="gallery1.jpg" alt="Gallery Image 1">
-        <img src="gallery2.jpg" alt="Gallery Image 2">
-        <!-- More gallery images -->
-    </div>
-    <div class="contact">
-        <h2>İletişim</h2>
-        <p>Email: contact@example.com</p>
-        <p>Telefon: 0123 456 789</p>
-    </div>
+
+    <!-- Slider -->
+    <section class="slider" id="home">
+        <div class="slide active">
+            <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=1920" alt="Slide 1">
+            <div class="slide-content">
+                <h1>Hoş Geldiniz</h1>
+                <p>Profesyonel çözümler için doğru adrestesiniz</p>
+            </div>
+        </div>
+        <div class="slide">
+            <img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1920" alt="Slide 2">
+            <div class="slide-content">
+                <h1>Kaliteli Hizmet</h1>
+                <p>Müşteri memnuniyeti bizim önceliğimizdir</p>
+            </div>
+        </div>
+        <div class="slide">
+            <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1920" alt="Slide 3">
+            <div class="slide-content">
+                <h1>Modern Tasarım</h1>
+                <p>En son teknoloji ile hizmetinizdeyiz</p>
+            </div>
+        </div>
+        <button class="slider-btn prev" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
+        <button class="slider-btn next" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
+        <div class="slider-dots">
+            <span class="dot active" data-slide="0"></span>
+            <span class="dot" data-slide="1"></span>
+            <span class="dot" data-slide="2"></span>
+        </div>
+    </section>
+
+    <!-- Galeri -->
+    <section class="gallery" id="gallery">
+        <h2 class="section-title">Galeri<span>.</span></h2>
+        <div class="gallery-grid">
+            <div class="gallery-item">
+                <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600" alt="Galeri 1">
+                <div class="gallery-overlay">
+                    <i class="fas fa-search-plus"></i>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600" alt="Galeri 2">
+                <div class="gallery-overlay">
+                    <i class="fas fa-search-plus"></i>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600" alt="Galeri 3">
+                <div class="gallery-overlay">
+                    <i class="fas fa-search-plus"></i>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="https://images.unsplash.com/photo-1551434678-e076c223a692?w=600" alt="Galeri 4">
+                <div class="gallery-overlay">
+                    <i class="fas fa-search-plus"></i>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600" alt="Galeri 5">
+                <div class="gallery-overlay">
+                    <i class="fas fa-search-plus"></i>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=600" alt="Galeri 6">
+                <div class="gallery-overlay">
+                    <i class="fas fa-search-plus"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- İletişim -->
+    <section class="contact" id="contact">
+        <h2 class="section-title">İletişim<span>.</span></h2>
+        <div class="contact-container">
+            <div class="contact-info">
+                <h3>Bizimle İletişime Geçin</h3>
+                <div class="contact-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <div>
+                        <h4>Adres</h4>
+                        <p>Örnek Mahallesi, Örnek Sokak No:1<br>İstanbul, Türkiye</p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <i class="fas fa-phone"></i>
+                    <div>
+                        <h4>Telefon</h4>
+                        <p>+90 212 123 45 67</p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <i class="fas fa-envelope"></i>
+                    <div>
+                        <h4>E-posta</h4>
+                        <p>info@ornek.com</p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <i class="fas fa-clock"></i>
+                    <div>
+                        <h4>Çalışma Saatleri</h4>
+                        <p>Pzt - Cmt: 09:00 - 18:00</p>
+                    </div>
+                </div>
+            </div>
+            <div class="contact-form">
+                <form id="contactForm">
+                    <div class="form-group">
+                        <label for="name">Adınız</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">E-posta</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="subject">Konu</label>
+                        <input type="text" id="subject" name="subject" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="message">Mesajınız</label>
+                        <textarea id="message" name="message" required></textarea>
+                    </div>
+                    <button type="submit" class="btn">Gönder</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="social-links">
+            <a href="#"><i class="fab fa-facebook"></i></a>
+            <a href="#"><i class="fab fa-twitter"></i></a>
+            <a href="#"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-linkedin"></i></a>
+        </div>
+        <p>&copy; 2024 LogoSite. Tüm hakları saklıdır.</p>
+    </footer>
+
     <script>
+        // Hamburger Menü
+        const hamburger = document.getElementById('hamburger');
+        const navMenu = document.getElementById('navMenu');
+
+        hamburger.addEventListener('click', () => {
+            navMenu.classList.toggle('active');
+        });
+
+        // Menü linklerine tıklandığında menüyü kapat
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', () => {
+                navMenu.classList.remove('active');
+            });
+        });
+
+        // Slider
+        const slides = document.querySelectorAll('.slide');
+        const dots = document.querySelectorAll('.dot');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
         let currentSlide = 0;
-        const slides = document.querySelectorAll('.slider img');
-        setInterval(() => {
-            slides[currentSlide].style.display = 'none';
-            currentSlide = (currentSlide + 1) % slides.length;
-            slides[currentSlide].style.display = 'block';
-        }, 3000);
+        const totalSlides = slides.length;
+
+        function showSlide(index) {
+            slides.forEach(slide => slide.classList.remove('active'));
+            dots.forEach(dot => dot.classList.remove('active'));
+            
+            slides[index].classList.add('active');
+            dots[index].classList.add('active');
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % totalSlides;
+            showSlide(currentSlide);
+        }
+
+        function prevSlide() {
+            currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+            showSlide(currentSlide);
+        }
+
+        nextBtn.addEventListener('click', nextSlide);
+        prevBtn.addEventListener('click', prevSlide);
+
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', () => {
+                currentSlide = index;
+                showSlide(currentSlide);
+            });
+        });
+
+        // Otomatik slider
+        setInterval(nextSlide, 5000);
+
+        // Form gönderimi
+        document.getElementById('contactForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Mesajınız gönderildi! Teşekkür ederiz.');
+            e.target.reset();
+        });
     </script>
 </body>
 </html>
