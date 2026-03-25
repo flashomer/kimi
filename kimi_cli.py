@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Kimi K2.5 CLI - Claude Code Style"""
 
-VERSION = "2.3.0"  # Fix tool_call_id error
+VERSION = "2.4.0"  # Non-streaming API calls - more reliable
 
 import os, sys, json, subprocess, difflib
 from pathlib import Path
@@ -289,99 +289,37 @@ class KimiAgent:
         self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
         self.messages = []
 
-    def stream_response(self, msgs, system, status_msg="Düşünüyor..."):
-        """Streaming ile yanıt al ve gerçek zamanlı göster"""
+    def call_api(self, msgs, status_msg="Düşünüyor..."):
+        """API çağrısı yap - streaming yok, daha güvenilir"""
         extra = {"extra_body": {"thinking": {"type": "disabled"}}} if "k2" in self.cfg.model else {}
 
-        content = ""
-        tool_calls_data = {}
-        current_tool_id = None
-
         # Görünür durum mesajı
-        console.print(f"[cyan]⏳ {status_msg}[/cyan]")
+        console.print(f"[cyan]⏳ {status_msg}[/cyan]", end=" ")
 
         try:
-            # Streaming request
-            stream = self.client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.cfg.model,
                 messages=msgs,
                 tools=TOOLS,
                 max_tokens=self.cfg.max_tokens,
                 temperature=0.6,
-                stream=True,
                 **extra
             )
 
-            first_content = False
-            dot_count = 0
+            console.print("[green]✓[/green]")
 
-            for chunk in stream:
-                delta = chunk.choices[0].delta if chunk.choices else None
-                if not delta:
-                    # Progress dots
-                    dot_count += 1
-                    if dot_count % 10 == 0:
-                        console.print(".", end="", style="cyan")
-                    continue
-
-                # Text content
-                if delta.content:
-                    if not first_content:
-                        first_content = True
-                        console.print()  # New line after dots
-                    content += delta.content
-                    console.print(delta.content, end="")
-
-                # Tool calls
-                if delta.tool_calls:
-                    if not first_content:
-                        first_content = True
-                        console.print()
-                    for tc in delta.tool_calls:
-                        # Tool call ID veya index ile takip et
-                        tc_index = tc.index if hasattr(tc, 'index') else 0
-                        if tc.id:
-                            current_tool_id = tc.id
-                            tool_calls_data[current_tool_id] = {
-                                "id": tc.id,
-                                "name": tc.function.name if tc.function else "",
-                                "arguments": ""
-                            }
-                        elif current_tool_id is None and tc_index is not None:
-                            # ID yoksa index kullan
-                            fallback_id = f"call_{tc_index}_{len(tool_calls_data)}"
-                            current_tool_id = fallback_id
-                            tool_calls_data[current_tool_id] = {
-                                "id": fallback_id,
-                                "name": tc.function.name if tc.function else "",
-                                "arguments": ""
-                            }
-                        if tc.function and current_tool_id:
-                            if tc.function.name and not tool_calls_data[current_tool_id]["name"]:
-                                tool_calls_data[current_tool_id]["name"] = tc.function.name
-                            if tc.function.arguments:
-                                tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
+            msg = response.choices[0].message
+            content = msg.content or ""
 
             if content:
-                console.print()  # Newline
+                console.print(content)
+
+            return content, msg.tool_calls or []
 
         except Exception as e:
-            console.print(f"\n[red]Hata: {e}[/red]")
+            console.print(f"[red]✗[/red]")
+            console.print(f"[red]Hata: {e}[/red]")
             raise e
-
-        # Convert to tool_calls list - sadece geçerli ID ve name olanlar
-        tool_calls = []
-        for tc_id, tc_data in tool_calls_data.items():
-            if tc_data["id"] and tc_data["name"]:
-                tool_calls.append(type('ToolCall', (), {
-                    'id': tc_data["id"],
-                    'function': type('Function', (), {
-                        'name': tc_data["name"],
-                        'arguments': tc_data["arguments"] or "{}"
-                    })()
-                })())
-
-        return content or "", tool_calls
 
     def chat(self, user_input):
         self.messages.append({"role": "user", "content": user_input})
@@ -401,7 +339,7 @@ Kurallar:
         try:
             console.print(f"\n[bold cyan]◆ Kimi[/bold cyan] [dim]({self.cfg.model})[/dim]")
 
-            content, tool_calls = self.stream_response(msgs, system, "Düşünüyor...")
+            content, tool_calls = self.call_api(msgs, "Düşünüyor...")
 
             iterations = 0
 
@@ -419,21 +357,20 @@ Kurallar:
                         "content": result
                     })
 
-                # Mesajları güncelle - content None olmamalı
-                assistant_msg = {
+                # Mesajları güncelle
+                self.messages.append({
                     "role": "assistant",
                     "content": content or "",
                     "tool_calls": [
-                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
-                        for tc in tool_calls if tc.id
+                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                        for tc in tool_calls
                     ]
-                }
-                self.messages.append(assistant_msg)
+                })
                 self.messages.extend(tool_results)
 
                 # Devam et
                 msgs = [{"role": "system", "content": system}] + self.messages[-12:]
-                content, tool_calls = self.stream_response(msgs, system, "Devam ediyor...")
+                content, tool_calls = self.call_api(msgs, "Devam ediyor...")
 
             self.messages.append({"role": "assistant", "content": content})
             return content
