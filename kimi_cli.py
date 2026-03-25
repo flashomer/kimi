@@ -111,7 +111,7 @@ class Agent:
 
             res = self.client.chat.completions.create(
                 model=self.cfg.model, messages=msgs, tools=TOOLS,
-                max_tokens=self.cfg.max_tokens, temperature=1.0, **extra
+                max_tokens=self.cfg.max_tokens, temperature=0.6, **extra
             )
             msg = res.choices[0].message
 
@@ -136,7 +136,7 @@ class Agent:
                 msgs = [{"role":"system","content":sys_msg}] + self.msgs[-10:]
                 res = self.client.chat.completions.create(
                     model=self.cfg.model, messages=msgs, tools=TOOLS,
-                    max_tokens=self.cfg.max_tokens, temperature=1.0, **extra
+                    max_tokens=self.cfg.max_tokens, temperature=0.6, **extra
                 )
                 msg = res.choices[0].message
 
