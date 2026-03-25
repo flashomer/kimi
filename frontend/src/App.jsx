@@ -140,9 +140,10 @@ function App() {
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     ['/help', 'Yardım göster'],
-                    ['/model', 'Model değiştir'],
+                    ['/init', 'Proje analizi'],
                     ['/swarm', 'Paralel ajanlar'],
-                    ['/shell', 'Shell modu'],
+                    ['/login', 'API key ayarla'],
+                    ['/model', 'Model değiştir'],
                     ['/clear', 'Sohbeti temizle'],
                     ['/exit', 'Çıkış'],
                   ].map(([cmd, desc]) => (

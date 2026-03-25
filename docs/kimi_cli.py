@@ -324,6 +324,96 @@ class KimiAgent:
         self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
         self.messages = []
 
+    def stream_response(self, msgs, system, status_msg="Düşünüyor..."):
+        """Streaming ile yanıt al ve gerçek zamanlı göster"""
+        import threading
+        import time
+
+        extra = {"extra_body": {"thinking": {"type": "disabled"}}} if "k2" in self.cfg.model else {}
+
+        # Spinner state
+        spinner_active = True
+        first_content = False
+
+        def spinner():
+            chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+            i = 0
+            while spinner_active and not first_content:
+                print(f"\r\033[36m{chars[i % len(chars)]} {status_msg}\033[0m   ", end="", flush=True)
+                i += 1
+                time.sleep(0.08)
+            print("\r" + " " * 50 + "\r", end="", flush=True)
+
+        t = threading.Thread(target=spinner, daemon=True)
+        t.start()
+
+        try:
+            # Streaming request
+            stream = self.client.chat.completions.create(
+                model=self.cfg.model,
+                messages=msgs,
+                tools=TOOLS,
+                max_tokens=self.cfg.max_tokens,
+                temperature=0.6,
+                stream=True,
+                **extra
+            )
+
+            content = ""
+            tool_calls_data = {}
+            current_tool_id = None
+
+            for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if not delta:
+                    continue
+
+                # Text content - stop spinner on first content
+                if delta.content:
+                    if not first_content:
+                        first_content = True
+                        time.sleep(0.1)  # Let spinner clear
+                    content += delta.content
+                    print(delta.content, end="", flush=True)
+
+                # Tool calls
+                if delta.tool_calls:
+                    if not first_content:
+                        first_content = True
+                        time.sleep(0.1)
+                    for tc in delta.tool_calls:
+                        if tc.id:
+                            current_tool_id = tc.id
+                            tool_calls_data[current_tool_id] = {
+                                "id": tc.id,
+                                "name": tc.function.name if tc.function else "",
+                                "arguments": ""
+                            }
+                        if tc.function and tc.function.arguments and current_tool_id:
+                            tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
+
+            if content:
+                print()  # Newline after streaming text
+
+        finally:
+            spinner_active = False
+            first_content = True
+            t.join(timeout=0.3)
+
+        # Convert to tool_calls list
+        tool_calls = []
+        for tc_id, tc_data in tool_calls_data.items():
+            if tc_data["name"]:
+                tool_calls.append(type('ToolCall', (), {
+                    'id': tc_data["id"],
+                    'function': type('Function', (), {
+                        'name': tc_data["name"],
+                        'arguments': tc_data["arguments"]
+                    })()
+                })())
+
+        return content, tool_calls
+
     def chat(self, user_input):
         self.messages.append({"role": "user", "content": user_input})
 
@@ -334,31 +424,24 @@ Kurallar:
 - Turkce yanit ver
 - Dosya olusturmak/duzenlemek icin MUTLAKA tool kullan
 - Kod yazarken modern ve temiz kod yaz
-- Her dosyayi ayri tool call ile olustur"""
+- Her dosyayi ayri tool call ile olustur
+- Hizli calis, gereksiz aciklama yapma"""
 
         msgs = [{"role": "system", "content": system}] + self.messages[-12:]
-        extra = {"extra_body": {"thinking": {"type": "disabled"}}} if "k2" in self.cfg.model else {}
 
         try:
             console.print(f"\n[bold cyan]◆ Kimi[/bold cyan] [dim]({self.cfg.model})[/dim]")
 
-            response = self.client.chat.completions.create(
-                model=self.cfg.model,
-                messages=msgs,
-                tools=TOOLS,
-                max_tokens=self.cfg.max_tokens,
-                temperature=0.6,
-                **extra
-            )
+            content, tool_calls = self.stream_response(msgs, system, "Düşünüyor...")
 
-            msg = response.choices[0].message
             iterations = 0
 
-            while msg.tool_calls and iterations < 20:
+            while tool_calls and iterations < 20:
                 iterations += 1
+                console.print(f"\n[dim]── Adım {iterations} ──[/dim]")
 
                 tool_results = []
-                for tc in msg.tool_calls:
+                for tc in tool_calls:
                     args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                     result = execute_tool(tc.function.name, args)
                     tool_results.append({
@@ -370,32 +453,25 @@ Kurallar:
                 # Mesajları güncelle
                 self.messages.append({
                     "role": "assistant",
-                    "content": msg.content,
+                    "content": content,
                     "tool_calls": [
                         {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                        for tc in msg.tool_calls
+                        for tc in tool_calls
                     ]
                 })
                 self.messages.extend(tool_results)
 
                 # Devam et
                 msgs = [{"role": "system", "content": system}] + self.messages[-12:]
-                response = self.client.chat.completions.create(
-                    model=self.cfg.model,
-                    messages=msgs,
-                    tools=TOOLS,
-                    max_tokens=self.cfg.max_tokens,
-                    temperature=0.6,
-                    **extra
-                )
-                msg = response.choices[0].message
+                content, tool_calls = self.stream_response(msgs, system, "Devam ediyor...")
 
-            content = msg.content or ""
             self.messages.append({"role": "assistant", "content": content})
             return content
 
         except Exception as e:
             console.print(f"\n[{COLORS['error']}]API Error: {e}[/{COLORS['error']}]")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
             return ""
 
     def clear(self):
@@ -433,17 +509,37 @@ def main():
             if not user_input.strip():
                 continue
 
+            # Magic keywords (oh-my-kimi style) - convert to slash commands
+            lower_input = user_input.lower().strip()
+            if lower_input.startswith("autopilot "):
+                user_input = "/autopilot " + user_input[10:]
+            elif lower_input.startswith("team "):
+                user_input = "/team " + user_input[5:]
+            elif lower_input.startswith("ralph "):
+                user_input = "/ralph " + user_input[6:]
+            elif lower_input.startswith("ultra "):
+                user_input = "/ultra " + user_input[6:]
+
             # Komutlar
             if user_input.startswith("/"):
                 cmd = user_input.lower().strip()
 
                 if cmd == "/help":
                     console.print(Panel(
-                        "[cyan]/help[/cyan]   Yardim\n"
-                        "[cyan]/clear[/cyan]  Sohbeti temizle\n"
-                        "[cyan]/model[/cyan]  Model degistir\n"
-                        "[cyan]/exit[/cyan]   Cikis",
-                        title="[bold]Komutlar[/bold]",
+                        "[bold white]Temel:[/bold white]\n"
+                        "[cyan]/help[/cyan]      Yardim\n"
+                        "[cyan]/init[/cyan]      Proje analizi\n"
+                        "[cyan]/model[/cyan]     Model degistir\n"
+                        "[cyan]/login[/cyan]     API key ayarla\n"
+                        "[cyan]/clear[/cyan]     Sohbeti temizle\n"
+                        "[cyan]/exit[/cyan]      Cikis\n\n"
+                        "[bold white]Agent Modlari:[/bold white]\n"
+                        "[magenta]/autopilot[/magenta] Tam otonom calisma\n"
+                        "[yellow]/team[/yellow]      Coklu agent (5 rol)\n"
+                        "[red]/ralph[/red]     Durmak yok modu\n"
+                        "[blue]/ultra[/blue]     Maximum hiz\n"
+                        "[cyan]/swarm[/cyan]     Paralel ajanlar",
+                        title="[bold]Kimi CLI Komutlari[/bold]",
                         border_style="cyan"
                     ))
 
@@ -471,6 +567,213 @@ def main():
                         console.print(f"\n[{COLORS['success']}]Model: {cfg.model}[/{COLORS['success']}]")
                     except:
                         console.print(f"[{COLORS['error']}]Gecersiz secim[/{COLORS['error']}]")
+
+                elif cmd == "/init":
+                    console.print(f"\n[{COLORS['info']}]Proje analiz ediliyor...[/{COLORS['info']}]")
+
+                    # Proje dosyalarını tara
+                    project_files = []
+                    for pattern in ["*.py", "*.js", "*.ts", "*.jsx", "*.tsx", "*.json", "*.md", "*.yaml", "*.yml"]:
+                        project_files.extend(Path(".").glob(f"**/{pattern}"))
+                    project_files = [str(f) for f in project_files if ".git" not in str(f) and "node_modules" not in str(f)][:30]
+
+                    if project_files:
+                        file_list = "\n".join(f"  - {f}" for f in project_files[:20])
+                        console.print(f"\n[{COLORS['success']}]Bulunan dosyalar ({len(project_files)}):[/{COLORS['success']}]\n{file_list}")
+
+                        # AGENTS.md olustur
+                        agents_content = f"""# Project Analysis
+
+## Files Found ({len(project_files)})
+
+{chr(10).join('- ' + f for f in project_files[:20])}
+
+## Suggested Tasks
+
+- Code review
+- Bug fixes
+- Feature development
+- Documentation
+
+Generated by Kimi CLI
+"""
+                        Path("AGENTS.md").write_text(agents_content, encoding="utf-8")
+                        console.print(f"\n[{COLORS['success']}]AGENTS.md olusturuldu[/{COLORS['success']}]")
+                    else:
+                        console.print(f"[{COLORS['warning']}]Proje dosyasi bulunamadi[/{COLORS['warning']}]")
+
+                elif cmd.startswith("/swarm"):
+                    parts = user_input.split(maxsplit=1)
+                    if len(parts) < 2:
+                        console.print(f"[{COLORS['warning']}]Kullanim: /swarm <gorev>[/{COLORS['warning']}]")
+                    else:
+                        task = parts[1]
+                        console.print(f"\n[{COLORS['info']}]Agent Swarm baslatiliyor...[/{COLORS['info']}]")
+                        console.print(f"[dim]Gorev: {task}[/dim]\n")
+
+                        # Paralel agent simülasyonu
+                        agents = ["Planner", "Coder", "Reviewer"]
+                        for i, a in enumerate(agents, 1):
+                            console.print(f"[cyan]Agent {i}/{len(agents)}:[/cyan] [bold]{a}[/bold] [dim]calisiyor...[/dim]")
+
+                        # Asıl gorevi agenta gonder
+                        response = agent.chat(f"Bu gorevi tamamla: {task}\n\nOnce plan yap, sonra kodu yaz, sonra kontrol et.")
+                        if response:
+                            console.print()
+                            console.print(Markdown(response))
+                            console.print()
+                        continue
+
+                elif cmd == "/login":
+                    console.print(f"\n[{COLORS['info']}]API Ayarlari[/{COLORS['info']}]")
+                    new_key = Prompt.ask("API Key", default=cfg.api_key[:8]+"..." if cfg.api_key else "")
+                    if new_key and not new_key.endswith("..."):
+                        cfg.api_key = new_key
+                        cfg.save()
+                        console.print(f"[{COLORS['success']}]API Key kaydedildi![/{COLORS['success']}]")
+                    else:
+                        console.print(f"[dim]Degisiklik yapilmadi[/dim]")
+
+                elif cmd.startswith("/autopilot"):
+                    # oh-my-kimi: Full autonomous execution
+                    parts = user_input.split(maxsplit=1)
+                    if len(parts) < 2:
+                        console.print(f"[{COLORS['warning']}]Kullanim: /autopilot <gorev>[/{COLORS['warning']}]")
+                    else:
+                        task = parts[1]
+                        console.print(f"\n[bold magenta]🤖 AUTOPILOT MODE[/bold magenta]")
+                        console.print(f"[dim]Gorev: {task}[/dim]\n")
+
+                        autopilot_prompt = f"""AUTOPILOT MODE - Tam otonom calisma
+
+GOREV: {task}
+
+KURALLAR:
+1. Gorevi tamamlanana kadar dur
+2. Her adimi acikla ve uygula
+3. Hatalarla karsilasirsan duzelt ve devam et
+4. Bittiginde ozet ver
+
+ADIMLAR:
+1. Analiz - Gorevi analiz et
+2. Plan - Adim adim plan yap
+3. Uygula - Her adimi sirayla uygula
+4. Dogrula - Sonucu kontrol et
+5. Raporla - Ozet ver
+
+BASLA:"""
+                        response = agent.chat(autopilot_prompt)
+                        if response:
+                            console.print()
+                            console.print(Markdown(response))
+                            console.print()
+                        continue
+
+                elif cmd.startswith("/team"):
+                    # oh-my-kimi: Multi-agent coordination
+                    parts = user_input.split(maxsplit=1)
+                    if len(parts) < 2:
+                        console.print(f"[{COLORS['warning']}]Kullanim: /team <gorev>[/{COLORS['warning']}]")
+                    else:
+                        task = parts[1]
+                        console.print(f"\n[bold yellow]👥 TEAM MODE[/bold yellow]")
+                        console.print(f"[dim]Gorev: {task}[/dim]\n")
+
+                        team_agents = [
+                            ("🧠 Architect", "Mimari tasarim"),
+                            ("💻 Developer", "Kod yazimi"),
+                            ("🔍 Reviewer", "Kod inceleme"),
+                            ("🧪 Tester", "Test yazimi"),
+                            ("📝 Documenter", "Dokumantasyon"),
+                        ]
+
+                        for emoji_name, role in team_agents:
+                            console.print(f"[cyan]{emoji_name}[/cyan] [dim]{role}...[/dim]")
+
+                        team_prompt = f"""TEAM MODE - Coklu agent koordinasyonu
+
+GOREV: {task}
+
+TAKIMINDAKI ROLLER:
+- Architect: Mimari kararlari al
+- Developer: Kodu yaz
+- Reviewer: Kodu incele ve iyilestir
+- Tester: Test senaryolari olustur
+- Documenter: Dokumantasyon ekle
+
+Her rol icin sirasi ile calis ve sonuclari birbirine aktar.
+Tum roller tamamlaninca final ciktiyi ver.
+
+BASLA:"""
+                        response = agent.chat(team_prompt)
+                        if response:
+                            console.print()
+                            console.print(Markdown(response))
+                            console.print()
+                        continue
+
+                elif cmd.startswith("/ralph"):
+                    # oh-my-kimi: Persistent execution until done
+                    parts = user_input.split(maxsplit=1)
+                    if len(parts) < 2:
+                        console.print(f"[{COLORS['warning']}]Kullanim: /ralph <gorev>[/{COLORS['warning']}]")
+                    else:
+                        task = parts[1]
+                        console.print(f"\n[bold red]🔥 RALPH MODE - Durmak yok![/bold red]")
+                        console.print(f"[dim]Gorev: {task}[/dim]\n")
+
+                        ralph_prompt = f"""RALPH MODE - Is bitene kadar durma!
+
+GOREV: {task}
+
+KURALLAR:
+1. ASLA pes etme
+2. Hata alirsan farkli yol dene
+3. Takildiysan yaratici cozumler bul
+4. Is TAMAMEN bitene kadar devam et
+5. Her adimda ilerleme goster
+
+ODAKLAN VE BITIR:"""
+
+                        max_iterations = 5
+                        for i in range(max_iterations):
+                            console.print(f"\n[bold red]Ralph Iteration {i+1}/{max_iterations}[/bold red]")
+                            response = agent.chat(ralph_prompt if i == 0 else "Devam et, gorevi tamamla. Eksik bir sey varsa tamamla.")
+                            if response:
+                                console.print()
+                                console.print(Markdown(response))
+                            if "tamamlandi" in response.lower() or "bitti" in response.lower() or "basarili" in response.lower():
+                                console.print(f"\n[{COLORS['success']}]Ralph gorevi tamamladi![/{COLORS['success']}]")
+                                break
+                        continue
+
+                elif cmd.startswith("/ultra"):
+                    # oh-my-kimi: Maximum parallelism
+                    parts = user_input.split(maxsplit=1)
+                    if len(parts) < 2:
+                        console.print(f"[{COLORS['warning']}]Kullanim: /ultra <gorev>[/{COLORS['warning']}]")
+                    else:
+                        task = parts[1]
+                        console.print(f"\n[bold blue]⚡ ULTRA MODE - Maximum performans![/bold blue]")
+
+                        ultra_prompt = f"""ULTRA MODE - Maximum hiz ve kalite
+
+GOREV: {task}
+
+CALISMA SEKLI:
+1. Hizli analiz yap
+2. En verimli cozumu sec
+3. Minimum adimda maksimum sonuc
+4. Gereksiz aciklama yapma, sadece calis
+5. Kod yaz, test et, bitir
+
+HIZLI BASLA:"""
+                        response = agent.chat(ultra_prompt)
+                        if response:
+                            console.print()
+                            console.print(Markdown(response))
+                            console.print()
+                        continue
 
                 elif cmd in ["/exit", "/quit", "/q"]:
                     console.print(f"\n[{COLORS['warning']}]Gule gule![/{COLORS['warning']}]\n")
