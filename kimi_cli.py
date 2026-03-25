@@ -52,7 +52,7 @@ class Config:
     model: str = "kimi-k2.5"  # 256K context, thinking mode, coding optimized
     thinking_enabled: bool = True
     max_tokens: int = 16384
-    temperature: float = 0.6
+    temperature: float = 1.0  # K2.5 için sadece 1.0 destekleniyor
 
     @classmethod
     def load(cls) -> "Config":
