@@ -326,79 +326,64 @@ class KimiAgent:
 
     def stream_response(self, msgs, system, status_msg="Düşünüyor..."):
         """Streaming ile yanıt al ve gerçek zamanlı göster"""
-        import threading
-        import time
+        from rich.status import Status
 
         extra = {"extra_body": {"thinking": {"type": "disabled"}}} if "k2" in self.cfg.model else {}
 
-        # Spinner state
-        spinner_active = True
-        first_content = False
+        content = ""
+        tool_calls_data = {}
+        current_tool_id = None
 
-        def spinner():
-            chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-            i = 0
-            while spinner_active and not first_content:
-                print(f"\r\033[36m{chars[i % len(chars)]} {status_msg}\033[0m   ", end="", flush=True)
-                i += 1
-                time.sleep(0.08)
-            print("\r" + " " * 50 + "\r", end="", flush=True)
+        with Status(f"[cyan]{status_msg}[/cyan]", console=console, spinner="dots") as status:
+            try:
+                # Streaming request
+                stream = self.client.chat.completions.create(
+                    model=self.cfg.model,
+                    messages=msgs,
+                    tools=TOOLS,
+                    max_tokens=self.cfg.max_tokens,
+                    temperature=0.6,
+                    stream=True,
+                    **extra
+                )
 
-        t = threading.Thread(target=spinner, daemon=True)
-        t.start()
+                first_content = False
 
-        try:
-            # Streaming request
-            stream = self.client.chat.completions.create(
-                model=self.cfg.model,
-                messages=msgs,
-                tools=TOOLS,
-                max_tokens=self.cfg.max_tokens,
-                temperature=0.6,
-                stream=True,
-                **extra
-            )
+                for chunk in stream:
+                    delta = chunk.choices[0].delta if chunk.choices else None
+                    if not delta:
+                        continue
 
-            content = ""
-            tool_calls_data = {}
-            current_tool_id = None
+                    # Text content
+                    if delta.content:
+                        if not first_content:
+                            first_content = True
+                            status.stop()
+                        content += delta.content
+                        console.print(delta.content, end="")
 
-            for chunk in stream:
-                delta = chunk.choices[0].delta if chunk.choices else None
-                if not delta:
-                    continue
+                    # Tool calls
+                    if delta.tool_calls:
+                        if not first_content:
+                            first_content = True
+                            status.stop()
+                        for tc in delta.tool_calls:
+                            if tc.id:
+                                current_tool_id = tc.id
+                                tool_calls_data[current_tool_id] = {
+                                    "id": tc.id,
+                                    "name": tc.function.name if tc.function else "",
+                                    "arguments": ""
+                                }
+                            if tc.function and tc.function.arguments and current_tool_id:
+                                tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
 
-                # Text content - stop spinner on first content
-                if delta.content:
-                    if not first_content:
-                        first_content = True
-                        time.sleep(0.1)  # Let spinner clear
-                    content += delta.content
-                    print(delta.content, end="", flush=True)
+                if content:
+                    console.print()  # Newline
 
-                # Tool calls
-                if delta.tool_calls:
-                    if not first_content:
-                        first_content = True
-                        time.sleep(0.1)
-                    for tc in delta.tool_calls:
-                        if tc.id:
-                            current_tool_id = tc.id
-                            tool_calls_data[current_tool_id] = {
-                                "id": tc.id,
-                                "name": tc.function.name if tc.function else "",
-                                "arguments": ""
-                            }
-                        if tc.function and tc.function.arguments and current_tool_id:
-                            tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
-
-            if content:
-                print()  # Newline after streaming text
-
-        finally:
-            spinner_active = False
-            first_content = True
-            t.join(timeout=0.3)
+            except Exception as e:
+                status.stop()
+                raise e
 
         # Convert to tool_calls list
         tool_calls = []
