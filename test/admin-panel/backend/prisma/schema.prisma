@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(ADMIN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Content {
+  id          Int      @id @default(autoincrement())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  excerpt     String?
+  type        ContentType @default(PAGE)
+  status      Status   @default(DRAFT)
+  featuredImage String?
+  metaTitle   String?
+  metaDesc    String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  authorId    Int
+  categoryId  Int?
+  category    Category? @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  contents    Content[]
+}
+
+model Media {
+  id        Int      @id @default(autoincrement())
+  filename  String
+  originalName String
+  mimeType  String
+  size      Int
+  url       String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}
+
+model Menu {
+  id        Int      @id @default(autoincrement())
+  name      String
+  location  String   @unique
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FormSubmission {
+  id          Int      @id @default(autoincrement())
+  formType    String
+  data        Json
+  status      FormStatus @default(NEW)
+  notes       String?
+  processedBy Int?
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+}
+
+enum ContentType {
+  PAGE
+  POST
+  SERVICE
+  PRODUCT
+}
+
+enum Status {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FormStatus {
+  NEW
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}

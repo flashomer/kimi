@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: cms_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: cms_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cms_network
+
+  backend:
+    build: ./backend
+    container_name: cms_backend
+    environment:
+      DATABASE_URL: postgresql://admin:admin123@postgres:5432/cms_db
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - cms_network
+    command: sh -c "npx prisma migrate deploy && npm start"
+
+  admin-ui:
+    build: ./admin-ui
+    container_name: cms_admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./admin-ui:/app
+      - /app/node_modules
+    networks:
+      - cms_network
+
+volumes:
+  postgres_data:
+
+networks:
+  cms_network:
+    driver: bridge
