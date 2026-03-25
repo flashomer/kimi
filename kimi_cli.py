@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Kimi K2.5 CLI Agent"""
 
-import os, sys, json, re, subprocess
+import os, sys, json, subprocess
 from pathlib import Path
 from dataclasses import dataclass
+
+# Windows UTF-8
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 try:
     from openai import OpenAI
@@ -11,7 +15,6 @@ try:
     from rich.panel import Panel
     from rich.markdown import Markdown
     from rich.prompt import Prompt
-    from rich.table import Table
 except ImportError:
     subprocess.run([sys.executable, "-m", "pip", "install", "openai>=1.0", "rich", "-q"])
     from openai import OpenAI
@@ -19,9 +22,8 @@ except ImportError:
     from rich.panel import Panel
     from rich.markdown import Markdown
     from rich.prompt import Prompt
-    from rich.table import Table
 
-console = Console()
+console = Console(force_terminal=True)
 CONFIG_FILE = Path.home() / ".kimi-cli" / "config.json"
 
 @dataclass
@@ -35,14 +37,14 @@ class Config:
     def load(cls):
         if CONFIG_FILE.exists():
             try:
-                d = json.loads(CONFIG_FILE.read_text())
+                d = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
                 return cls(**{k:v for k,v in d.items() if hasattr(cls, k)})
             except: pass
         return cls()
 
     def save(self):
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(json.dumps(self.__dict__, indent=2))
+        CONFIG_FILE.write_text(json.dumps(self.__dict__, indent=2), encoding='utf-8')
 
 # Tools
 def read_file(path):
@@ -62,7 +64,7 @@ def write_file(path, content):
 def list_files(path=".", pattern="*"):
     try:
         files = list(Path(path).glob(pattern))[:30]
-        return "\n".join(f.name for f in files) or "[BOŞ]"
+        return "\n".join(f.name for f in files) or "[BOS]"
     except Exception as e:
         return f"[HATA] {e}"
 
@@ -81,13 +83,14 @@ TOOLS = [
 ]
 
 def run_tool(name, args):
-    console.print(f"  [yellow]► {name}[/yellow]", end=" ")
+    print(f"  > {name}", end=" ", flush=True)
     if name == "read_file": r = read_file(args.get("path",""))
     elif name == "write_file": r = write_file(args.get("path",""), args.get("content",""))
     elif name == "list_files": r = list_files(args.get("path","."), args.get("pattern","*"))
     elif name == "run_cmd": r = run_cmd(args.get("cmd",""))
     else: r = "[?]"
-    console.print(f"[dim]{r[:60]}...[/dim]" if len(r)>60 else f"[dim]{r}[/dim]")
+    short = r[:50].replace('\n',' ') + "..." if len(r)>50 else r.replace('\n',' ')
+    print(short, flush=True)
     return r
 
 class Agent:
@@ -98,15 +101,13 @@ class Agent:
 
     def chat(self, text):
         self.msgs.append({"role":"user","content":text})
-
         sys_msg = f"Sen Kimi, kodlama asistanisin. Dizin: {os.getcwd()}. Turkce yaz."
         msgs = [{"role":"system","content":sys_msg}] + self.msgs[-10:]
 
-        # K2.5 thinking mode kapat
         extra = {"extra_body":{"thinking":{"type":"disabled"}}} if "k2" in self.cfg.model else {}
 
         try:
-            console.print("[cyan]● Kimi dusunuyor...[/cyan]")
+            print("[*] Kimi calisiyor...", flush=True)
 
             res = self.client.chat.completions.create(
                 model=self.cfg.model, messages=msgs, tools=TOOLS,
@@ -114,11 +115,10 @@ class Agent:
             )
             msg = res.choices[0].message
 
-            # Tool loop
             loop = 0
             while msg.tool_calls and loop < 10:
                 loop += 1
-                console.print(f"[cyan]● Tool calistiriliyor ({len(msg.tool_calls)})...[/cyan]")
+                print(f"[*] {len(msg.tool_calls)} tool calistiriliyor...", flush=True)
 
                 results = []
                 for tc in msg.tool_calls:
@@ -132,7 +132,7 @@ class Agent:
                 ]})
                 self.msgs.extend(results)
 
-                console.print("[cyan]● Devam ediyor...[/cyan]")
+                print("[*] Devam ediyor...", flush=True)
                 msgs = [{"role":"system","content":sys_msg}] + self.msgs[-10:]
                 res = self.client.chat.completions.create(
                     model=self.cfg.model, messages=msgs, tools=TOOLS,
@@ -145,7 +145,7 @@ class Agent:
             return content
 
         except Exception as e:
-            console.print(f"[red]Hata: {e}[/red]")
+            print(f"[HATA] {e}", flush=True)
             return ""
 
 def main():
@@ -157,7 +157,7 @@ def main():
         cfg.save()
 
     agent = Agent(cfg)
-    console.print(f"[dim]{os.getcwd()}[/dim]\n")
+    print(f"Dizin: {os.getcwd()}\n", flush=True)
 
     while True:
         try:
@@ -166,29 +166,25 @@ def main():
 
             if inp.startswith("/"):
                 c = inp.lower()
-                if c == "/help":
-                    console.print("/help /clear /model /exit")
-                elif c == "/clear":
-                    agent.msgs = []
-                    console.print("[green]OK[/green]")
+                if c == "/help": print("/help /clear /model /exit")
+                elif c == "/clear": agent.msgs = []; print("[OK]")
                 elif c.startswith("/model"):
                     ms = ["moonshot-v1-8k","moonshot-v1-32k","moonshot-v1-128k","kimi-k2.5","kimi-k2-turbo-preview"]
-                    for i,m in enumerate(ms,1): console.print(f"{i}. {m}" + (" *" if m==cfg.model else ""))
+                    for i,m in enumerate(ms,1): print(f"{i}. {m}" + (" *" if m==cfg.model else ""))
                     n = Prompt.ask("Sec","4")
-                    try: cfg.model = ms[int(n)-1]; cfg.save(); console.print(f"[green]{cfg.model}[/green]")
+                    try: cfg.model = ms[int(n)-1]; cfg.save(); print(f"[OK] {cfg.model}")
                     except: pass
-                elif c in ["/exit","/quit"]:
-                    break
+                elif c in ["/exit","/quit"]: break
                 continue
 
             r = agent.chat(inp)
             if r:
-                console.print()
+                print()
                 console.print(Markdown(r))
-                console.print()
+                print()
 
         except KeyboardInterrupt:
-            console.print()
+            print()
         except EOFError:
             break
 
