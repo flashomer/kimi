@@ -121,18 +121,17 @@ function App() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-slate-400 mb-2">Linux / macOS:</p>
-                  <CodeBlock>curl -fsSL https://raw.githubusercontent.com/flashomer/kimi/master/install.sh | bash</CodeBlock>
+                  <CodeBlock>curl -fsSL https://flashomer.github.io/kimi/install.sh | bash</CodeBlock>
                 </div>
 
                 <div>
                   <p className="text-sm text-slate-400 mb-2">Windows (PowerShell):</p>
-                  <CodeBlock>powershell -ExecutionPolicy Bypass -File install.ps1</CodeBlock>
+                  <CodeBlock>irm https://flashomer.github.io/kimi/install.ps1 | iex</CodeBlock>
                 </div>
 
                 <div>
-                  <p className="text-sm text-slate-400 mb-2">Manuel Kurulum:</p>
-                  <CodeBlock>{`pip install openai rich requests
-python kimi_cli.py`}</CodeBlock>
+                  <p className="text-sm text-slate-400 mb-2">Manuel:</p>
+                  <CodeBlock>{`pip install openai rich && curl -fsSL https://flashomer.github.io/kimi/kimi_cli.py -o kimi.py && python kimi.py`}</CodeBlock>
                 </div>
               </div>
             </div>
