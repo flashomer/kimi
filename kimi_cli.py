@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Kimi K2.5 CLI - Claude Code Style"""
 
+VERSION = "2.0.0"  # Streaming + Spinner + oh-my-kimi features
+
 import os, sys, json, subprocess, difflib
 from pathlib import Path
 from dataclasses import dataclass
@@ -787,7 +789,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         arg = sys.argv[1].lower()
         if arg in ["-v", "--version"]:
-            print("Kimi CLI v1.0.0")
+            print(f"Kimi CLI v{VERSION}")
         elif arg in ["-h", "--help"]:
             print("Usage: kimi [command]\n\nCommands:\n  web    Open web UI\n  login  Set API key")
         elif arg == "web":

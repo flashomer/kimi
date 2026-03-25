@@ -3,65 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ana Sayfa</title>
+    <title>One Page Site</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            margin: 0;
+            font-family: Arial, sans-serif;
         }
-        
-        .container {
-            background: white;
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        header {
+            background: #333;
+            color: #fff;
+            padding: 10px 0;
             text-align: center;
-            max-width: 500px;
         }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 1rem;
-            font-size: 2.5rem;
+        .slider {
+            width: 100%;
+            overflow: hidden;
         }
-        
-        p {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
+        .slider img {
+            width: 100%;
+            display: none;
         }
-        
-        .btn {
-            display: inline-block;
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 30px;
-            transition: transform 0.3s, box-shadow 0.3s;
+        .gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
         }
-        
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        .gallery img {
+            width: calc(33.333% - 10px);
+            height: auto;
+            object-fit: cover;
+        }
+        .contact {
+            background: #f4f4f4;
+            padding: 20px;
+            text-align: center;
+        }
+        @media (max-width: 768px) {
+            .gallery img {
+                width: calc(50% - 10px);
+            }
+        }
+        @media (max-width: 480px) {
+            .gallery img {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Hoş Geldiniz! 👋</h1>
-        <p>Bu basit bir HTML sayfasıdır. Modern ve şık bir tasarıma sahiptir.</p>
-        <a href="#" class="btn">Devam Et</a>
+    <header>
+        <h1>Site Başlığı</h1>
+    </header>
+    <div class="slider">
+        <img src="slide1.jpg" alt="Slider Image 1">
+        <img src="slide2.jpg" alt="Slider Image 2">
+        <!-- More slides -->
     </div>
+    <div class="gallery">
+        <img src="gallery1.jpg" alt="Gallery Image 1">
+        <img src="gallery2.jpg" alt="Gallery Image 2">
+        <!-- More gallery images -->
+    </div>
+    <div class="contact">
+        <h2>İletişim</h2>
+        <p>Email: contact@example.com</p>
+        <p>Telefon: 0123 456 789</p>
+    </div>
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slider img');
+        setInterval(() => {
+            slides[currentSlide].style.display = 'none';
+            currentSlide = (currentSlide + 1) % slides.length;
+            slides[currentSlide].style.display = 'block';
+        }, 3000);
+    </script>
 </body>
 </html>
