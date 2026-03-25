@@ -188,13 +188,19 @@ Turkce yanit ver. Kisa ve oz ol. Kod yazarken aciklama ekle."""
             # İlk istek
             console.print("[dim]● Istek gonderiliyor...[/dim]")
 
+            # K2.5 için thinking mode kapalı (tool calling ile uyumsuz)
+            extra = {}
+            if "k2" in self.config.model:
+                extra["extra_body"] = {"thinking": {"type": "disabled"}}
+
             response = self.client.chat.completions.create(
                 model=self.config.model,
                 messages=messages,
                 tools=TOOLS,
                 tool_choice="auto",
                 max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature
+                temperature=self.config.temperature,
+                **extra
             )
 
             msg = response.choices[0].message
@@ -240,7 +246,8 @@ Turkce yanit ver. Kisa ve oz ol. Kod yazarken aciklama ekle."""
                     tools=TOOLS,
                     tool_choice="auto",
                     max_tokens=self.config.max_tokens,
-                    temperature=self.config.temperature
+                    temperature=self.config.temperature,
+                    **extra
                 )
                 msg = response.choices[0].message
 
