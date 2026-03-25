@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Kimi K2.5 CLI - Claude Code Style"""
 
-VERSION = "2.0.1"  # Fix duplicate output
+VERSION = "2.2.0"  # Concise output, no full file dump
 
 import os, sys, json, subprocess, difflib
 from pathlib import Path
@@ -82,71 +82,34 @@ def get_lang(path):
 
 
 def show_file_content(content, path, is_new=True):
-    """Dosya içeriğini Claude Code tarzı göster"""
-    lang = get_lang(path)
+    """Dosya içeriğini kısa özet olarak göster"""
+    lines = content.splitlines()
+    line_count = len(lines)
+    char_count = len(content)
 
-    # Başlık
     icon = "+" if is_new else "~"
     color = "green" if is_new else "yellow"
-    title = f"[bold {color}]{icon} {path}[/bold {color}]"
 
-    # Syntax highlighting
-    syntax = Syntax(
-        content,
-        lang,
-        theme="monokai",
-        line_numbers=True,
-        word_wrap=True,
-        indent_guides=True,
-        background_color="default"
-    )
-
-    console.print()
-    console.print(Panel(
-        syntax,
-        title=title,
-        title_align="left",
-        border_style=color,
-        box=box.ROUNDED,
-        padding=(0, 1)
-    ))
+    # Sadece özet göster (tüm içeriği değil)
+    console.print(f"[{color}]{icon} {path}[/{color}] [dim]({line_count} satır, {char_count} karakter)[/dim]")
 
 
 def show_diff(old_content, new_content, path):
-    """Değişiklikleri Claude Code diff tarzında göster"""
-    old_lines = old_content.splitlines(keepends=True)
-    new_lines = new_content.splitlines(keepends=True)
+    """Değişiklikleri kısa özet olarak göster"""
+    old_lines = old_content.splitlines()
+    new_lines = new_content.splitlines()
 
-    diff = list(difflib.unified_diff(old_lines, new_lines, fromfile=path, tofile=path, lineterm=''))
+    added = len(new_lines) - len(old_lines)
+    old_chars = len(old_content)
+    new_chars = len(new_content)
 
-    if not diff:
-        console.print(f"[dim]Degisiklik yok[/dim]")
-        return
-
-    console.print()
-    console.print(f"[bold yellow]~ {path}[/bold yellow]")
-    console.print()
-
-    for line in diff:
-        line = line.rstrip('\n')
-        if line.startswith('+++') or line.startswith('---'):
-            console.print(f"[bold white]{line}[/bold white]")
-        elif line.startswith('@@'):
-            console.print(f"[cyan]{line}[/cyan]")
-        elif line.startswith('+'):
-            # Yeşil arka plan
-            text = Text(line)
-            text.stylize("white on dark_green")
-            console.print(text)
-        elif line.startswith('-'):
-            # Kırmızı arka plan
-            text = Text(line)
-            text.stylize("white on dark_red")
-            console.print(text)
-        else:
-            console.print(f"[dim]{line}[/dim]")
-
-    console.print()
+    # Özet göster
+    if added > 0:
+        console.print(f"[yellow]~ {path}[/yellow] [dim](+{added} satır, {old_chars} → {new_chars} karakter)[/dim]")
+    elif added < 0:
+        console.print(f"[yellow]~ {path}[/yellow] [dim]({added} satır, {old_chars} → {new_chars} karakter)[/dim]")
+    else:
+        console.print(f"[yellow]~ {path}[/yellow] [dim]({new_chars} karakter)[/dim]")
 
 
 # ==================== TOOLS ====================
@@ -328,64 +291,69 @@ class KimiAgent:
 
     def stream_response(self, msgs, system, status_msg="Düşünüyor..."):
         """Streaming ile yanıt al ve gerçek zamanlı göster"""
-        from rich.status import Status
-
         extra = {"extra_body": {"thinking": {"type": "disabled"}}} if "k2" in self.cfg.model else {}
 
         content = ""
         tool_calls_data = {}
         current_tool_id = None
 
-        with Status(f"[cyan]{status_msg}[/cyan]", console=console, spinner="dots") as status:
-            try:
-                # Streaming request
-                stream = self.client.chat.completions.create(
-                    model=self.cfg.model,
-                    messages=msgs,
-                    tools=TOOLS,
-                    max_tokens=self.cfg.max_tokens,
-                    temperature=0.6,
-                    stream=True,
-                    **extra
-                )
+        # Görünür durum mesajı
+        console.print(f"[cyan]⏳ {status_msg}[/cyan]")
 
-                first_content = False
+        try:
+            # Streaming request
+            stream = self.client.chat.completions.create(
+                model=self.cfg.model,
+                messages=msgs,
+                tools=TOOLS,
+                max_tokens=self.cfg.max_tokens,
+                temperature=0.6,
+                stream=True,
+                **extra
+            )
 
-                for chunk in stream:
-                    delta = chunk.choices[0].delta if chunk.choices else None
-                    if not delta:
-                        continue
+            first_content = False
+            dot_count = 0
 
-                    # Text content
-                    if delta.content:
-                        if not first_content:
-                            first_content = True
-                            status.stop()
-                        content += delta.content
-                        console.print(delta.content, end="")
+            for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if not delta:
+                    # Progress dots
+                    dot_count += 1
+                    if dot_count % 10 == 0:
+                        console.print(".", end="", style="cyan")
+                    continue
 
-                    # Tool calls
-                    if delta.tool_calls:
-                        if not first_content:
-                            first_content = True
-                            status.stop()
-                        for tc in delta.tool_calls:
-                            if tc.id:
-                                current_tool_id = tc.id
-                                tool_calls_data[current_tool_id] = {
-                                    "id": tc.id,
-                                    "name": tc.function.name if tc.function else "",
-                                    "arguments": ""
-                                }
-                            if tc.function and tc.function.arguments and current_tool_id:
-                                tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
+                # Text content
+                if delta.content:
+                    if not first_content:
+                        first_content = True
+                        console.print()  # New line after dots
+                    content += delta.content
+                    console.print(delta.content, end="")
 
-                if content:
-                    console.print()  # Newline
+                # Tool calls
+                if delta.tool_calls:
+                    if not first_content:
+                        first_content = True
+                        console.print()
+                    for tc in delta.tool_calls:
+                        if tc.id:
+                            current_tool_id = tc.id
+                            tool_calls_data[current_tool_id] = {
+                                "id": tc.id,
+                                "name": tc.function.name if tc.function else "",
+                                "arguments": ""
+                            }
+                        if tc.function and tc.function.arguments and current_tool_id:
+                            tool_calls_data[current_tool_id]["arguments"] += tc.function.arguments
 
-            except Exception as e:
-                status.stop()
-                raise e
+            if content:
+                console.print()  # Newline
+
+        except Exception as e:
+            console.print(f"\n[red]Hata: {e}[/red]")
+            raise e
 
         # Convert to tool_calls list
         tool_calls = []
