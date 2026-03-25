@@ -1,0 +1,85 @@
+version: '3.8'
+
+# Kimi 2.5 CLI Agent - Tam Docker Projesi
+# Tek komutla çalıştır: docker-compose up --build
+
+services:
+  # ============================================
+  # Backend API - FastAPI
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: kimi-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./workspace:/app/workspace
+      - ./sessions:/app/sessions
+      - ./backend:/app/backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - kimi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Frontend - React + Vite
+  # ============================================
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: kimi-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - kimi-network
+
+  # ============================================
+  # Redis - Session Cache
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: kimi-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - kimi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+# ============================================
+# Volumes & Networks
+# ============================================
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  kimi-network:
+    driver: bridge
+    name: kimi-network

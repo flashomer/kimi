@@ -1,0 +1,26 @@
+FROM node:20-alpine
+
+LABEL maintainer="Kimi CLI Agent"
+LABEL description="Kimi 2.5 Frontend"
+
+WORKDIR /app
+
+# Package dosyaları
+COPY frontend/package*.json ./
+
+# Bağımlılıklar
+RUN npm install --silent
+
+# Kaynak kodlar
+COPY frontend/ .
+
+# Non-root kullanıcı
+RUN addgroup -g 1001 -S nodejs \
+    && adduser -S kimi -u 1001 \
+    && chown -R kimi:nodejs /app
+
+USER kimi
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

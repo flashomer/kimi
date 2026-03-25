@@ -1,0 +1,27 @@
+# Kimi 2.5 CLI Agent - Backend Dependencies
+
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# AI/LLM
+openai>=1.0
+
+# Database & Cache
+redis==5.0.0
+
+# Validation & Settings
+pydantic==2.9.0
+pydantic-settings==2.6.0
+
+# HTTP & Async
+httpx==0.27.0
+aiofiles==24.1.0
+websockets==12.0
+python-multipart==0.0.9
+
+# Utilities
+python-dotenv==1.0.0
+
+# CLI (standalone)
+rich>=13.0.0
